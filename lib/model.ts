@@ -107,6 +107,10 @@ export interface LiveRow {
   mcap_usd: number;
   ratio: number;
   change_7d: number | null;
+  /** The model figures for this peer's category: raw median, peer count, shrunk multiple. */
+  category_median: number;
+  peer_count: number;
+  multiple: number;
 }
 
 /** Everything the dashboard renders. */
@@ -251,23 +255,32 @@ export function buildBoard(snapshot: Snapshot): BoardRow[] {
   }));
 }
 
-/** The largest already-launched protocols, by market cap: the peer yardstick panel. */
+/** The largest already-launched protocols, by market cap: the peer yardstick panel.
+ *  Each carries its category's model figures, so a peer's own page can show exactly
+ *  how it feeds the multiples the board is scored with. */
 export function liveRows(snapshot: Snapshot): LiveRow[] {
+  const peers = peerModel(snapshot);
   return snapshot.protocols
     .filter(isPeer)
     .sort((a, b) => b.mcap_usd! - a.mcap_usd! || b.tvl_usd - a.tvl_usd || (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0))
     .slice(0, LIVE_PEER_ROWS)
-    .map((p) => ({
-      slug: p.slug,
-      name: p.name,
-      symbol: p.symbol,
-      category: p.category,
-      chains: p.chains,
-      tvl_usd: p.tvl_usd,
-      mcap_usd: p.mcap_usd!,
-      ratio: round4(p.mcap_usd! / p.tvl_usd),
-      change_7d: p.change_7d,
-    }));
+    .map((p) => {
+      const mult = multipleFor(p, peers);
+      return {
+        slug: p.slug,
+        name: p.name,
+        symbol: p.symbol,
+        category: p.category,
+        chains: p.chains,
+        tvl_usd: p.tvl_usd,
+        mcap_usd: p.mcap_usd!,
+        ratio: round4(p.mcap_usd! / p.tvl_usd),
+        change_7d: p.change_7d,
+        category_median: round4(mult.categoryMedian),
+        peer_count: mult.peerCount,
+        multiple: round4(mult.multiple),
+      };
+    });
 }
 
 /** Board plus dashboard data, from one pass over the snapshot. */
