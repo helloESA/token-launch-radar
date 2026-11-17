@@ -124,6 +124,12 @@ export interface RadarData {
   watchlist_size: number;
   board_size: number;
   live_size: number;
+  snapshot_size: number;
+  tokened_size: number;
+  /** Leave-one-out check of the model on its own traded peers. */
+  validation: { peers: number; median_miss: number; within_2_pct: number; within_3_pct: number };
+  /** Every traded peer as a [tvl_usd, mcap_usd] pair, for the yardstick scatter. */
+  peer_points: Array<[number, number]>;
   rows: RadarRow[];
   live: LiveRow[];
 }
@@ -215,6 +221,26 @@ export function maturityMultiplier(age: number | null): number {
   return 0.85 + 0.3 * (1 - Math.exp(-age / 540));
 }
 
+/** Leave-one-out check of the model on the traded peers themselves: each peer
+ *  is predicted from the OTHER peers (its category's shrunk multiple, the same
+ *  growth and maturity adjustments), and the miss against the market cap the
+ *  market actually set is recorded. Published, so the model's roughness is
+ *  on the page rather than buried. */
+export function validateModel(snapshot: Snapshot): { peers: number; medianMiss: number; within2Pct: number; within3Pct: number } {
+  const peers = snapshot.protocols.filter(isPeer);
+  const misses: number[] = [];
+  for (const self of peers) {
+    const rest: Snapshot = { ...snapshot, protocols: peers.filter((p) => p !== self) };
+    const mult = multipleFor(self, peerModel(rest));
+    const age = ageDays(snapshot.as_of, self.listed_at);
+    const predicted = self.tvl_usd * mult.multiple * growthMultiplier(self.change_7d) * maturityMultiplier(age);
+    misses.push(Math.max(predicted / self.mcap_usd!, self.mcap_usd! / predicted));
+  }
+  misses.sort((a, b) => a - b);
+  const share = (limit: number): number => Math.round((misses.filter((m) => m <= limit).length / misses.length) * 100);
+  return { peers: peers.length, medianMiss: Math.round(median(misses) * 10) / 10, within2Pct: share(2), within3Pct: share(3) };
+}
+
 /** Score every board protocol and rank the results. */
 export function buildBoard(snapshot: Snapshot): BoardRow[] {
   const peers = peerModel(snapshot);
@@ -288,6 +314,7 @@ export function buildRadar(snapshot: Snapshot): { board: BoardRow[]; radar: Rada
   const peers = peerModel(snapshot);
   const board = buildBoard(snapshot);
   const live = liveRows(snapshot);
+  const check = validateModel(snapshot);
   const radar: RadarData = {
     as_of: snapshot.as_of,
     source: snapshot.source,
@@ -298,6 +325,10 @@ export function buildRadar(snapshot: Snapshot): { board: BoardRow[]; radar: Rada
     watchlist_size: snapshot.watchlist.length,
     board_size: board.length,
     live_size: live.length,
+    snapshot_size: snapshot.protocols.length,
+    tokened_size: snapshot.protocols.filter((p) => !isPreToken(p)).length,
+    validation: { peers: check.peers, median_miss: check.medianMiss, within_2_pct: check.within2Pct, within_3_pct: check.within3Pct },
+    peer_points: snapshot.protocols.filter(isPeer).map((p): [number, number] => [p.tvl_usd, p.mcap_usd!]),
     rows: board.map((r) => ({ ...r })),
     live,
   };
