@@ -1,4 +1,4 @@
-// Token Launch Radar — entrypoint (Node 22, standard library only).
+// Debut Radar — entrypoint (Node 22, standard library only).
 //
 // Reads the sealed snapshot (--input <file|dir>, default /input/snapshot.json), scores the
 // pre-token protocols with lib/model.ts, and writes into the output directory
@@ -34,7 +34,7 @@ function flag(name: string, fallback: string): string {
 }
 
 function fail(message: string): never {
-  process.stderr.write(`token launch radar: ${message}\n`);
+  process.stderr.write(`debut radar: ${message}\n`);
   process.exit(1);
 }
 
@@ -76,7 +76,7 @@ if (shots.length < 3 || shots.length > 4) fail(`screenshots/ holds ${shots.lengt
 writeFileSync(join(outputDir, 'dossier.json'), buildDossier(outputDir, { text_max_bytes: 65_536 }));
 
 process.stdout.write(
-  `token launch radar: snapshot ${snapshot.as_of}, ${snapshot.protocols.length} protocols, ` +
+  `debut radar: snapshot ${snapshot.as_of}, ${snapshot.protocols.length} protocols, ` +
     `${snapshot.watchlist.length} watchlist slugs covered, ${board.length} rows ranked, ${radar.live.length} launched peers shown\n` +
-    `token launch radar: wrote board.json, data.js, dashboard/ (${dashFiles.length} files), screenshots/ (${shots.length} images), dossier.json\n`,
+    `debut radar: wrote board.json, data.js, dashboard/ (${dashFiles.length} files), screenshots/ (${shots.length} images), dossier.json\n`,
 );
